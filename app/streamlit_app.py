@@ -1,127 +1,186 @@
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
-import os
-
-st.set_page_config(page_title='Employee Attrition Predictor', layout='centered')
-st.title('Employee Attrition Predictor')
+from pathlib import Path
 
 # ------------------------
-# Load model, scaler, metadata
+# Page config
+# ------------------------
+st.set_page_config(
+    page_title="Employee Attrition Predictor",
+    page_icon="📊",
+    layout="wide"
+)
+
+# ------------------------
+# Paths
+# ------------------------
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = BASE_DIR / "model"
+
+# ------------------------
+# Load artifacts
 # ------------------------
 @st.cache_resource
 def load_artifacts():
-    required_files = ["best_random_forest_attrition.pkl", "scaler.pkl",
-                      "feature_names.pkl", "numeric_cols_to_scale.pkl"]
-    missing = [f for f in required_files if not os.path.exists(f)]
-    if missing:
-        return None, None, None, None, missing
-    model = joblib.load("best_random_forest_attrition.pkl")
-    scaler = joblib.load("scaler.pkl")
-    feature_names = joblib.load("feature_names.pkl")               # list of column names in correct order
-    numeric_cols_to_scale = joblib.load("numeric_cols_to_scale.pkl")  # list of numeric cols that were scaled
-    return model, scaler, feature_names, numeric_cols_to_scale, None
+    files = [
+        "best_random_forest_attrition.pkl",
+        "scaler.pkl",
+        "feature_names.pkl",
+        "numeric_cols_to_scale.pkl"
+    ]
 
-model, scaler, feature_names, numeric_cols_to_scale, missing = load_artifacts()
+    for f in files:
+        if not (MODEL_DIR / f).exists():
+            return None, None, None, None
 
-if missing:
-    st.error(f"Missing files: {missing}. Run the training notebook to generate them (model, scaler, feature_names, numeric_cols_to_scale).")
+    model = joblib.load(MODEL_DIR / "best_random_forest_attrition.pkl")
+    scaler = joblib.load(MODEL_DIR / "scaler.pkl")
+    feature_names = joblib.load(MODEL_DIR / "feature_names.pkl")
+    numeric_cols = joblib.load(MODEL_DIR / "numeric_cols_to_scale.pkl")
+
+    return model, scaler, feature_names, numeric_cols
+
+
+model, scaler, feature_names, numeric_cols_to_scale = load_artifacts()
+
+if model is None:
+    st.error("Model files not found. Please train the model first.")
     st.stop()
 
+# ------------------------
+# Title section
+# ------------------------
+st.title("📊 Employee Attrition Prediction System")
+st.markdown(
+    """
+    This application predicts whether an employee is **likely to leave the organization**
+    based on demographic, job-related, and performance features.
+    """
+)
 
+st.divider()
 
 # ------------------------
-# Form for single input
+# Sidebar inputs
 # ------------------------
-st.header("Enter Employee Details")
+st.sidebar.header("🧾 Employee Details")
 
-def user_input_form():
-    data = {}
-    data["Age"] = st.number_input("Age", 18, 65, 30)
-    data["Gender"] = st.selectbox("Gender", ["Male", "Female"])
-    data["Marital_Status"] = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
-    data["Department"] = st.selectbox("Department", ["Sales", "IT", "HR", "R&D", "Finance", "Marketing"])
-    data["Job_Role"] = st.selectbox("Job Role", ["Sales Executive", "Software Engineer", "HR Specialist",
-                                                 "Research Scientist", "Financial Analyst", "Marketing Specialist"])
-    data["Job_Level"] = st.number_input("Job Level", 1, 5, 2)
-    data["Monthly_Income"] = st.number_input("Monthly Income", 1000, 30000, 5000)
-    data["Hourly_Rate"] = st.number_input("Hourly Rate", 10, 100, 40)
-    data["Years_at_Company"] = st.number_input("Years at Company", 0, 40, 2)
-    data["Years_in_Current_Role"] = st.number_input("Years in Current Role", 0, 20, 1)
-    data["Years_Since_Last_Promotion"] = st.number_input("Years Since Last Promotion", 0, 20, 0)
-    data["Work_Life_Balance"] = st.selectbox("Work Life Balance (1â€“4)", [1,2,3,4])
-    data["Job_Satisfaction"] = st.selectbox("Job Satisfaction (1â€“5)", [1,2,3,4,5])
-    data["Performance_Rating"] = st.selectbox("Performance Rating (1â€“4)", [1,2,3,4])
-    data["Training_Hours_Last_Year"] = st.number_input("Training Hours Last Year", 0, 200, 20)
-    data["Overtime"] = st.selectbox("Overtime", ["Yes", "No"])
-    data["Project_Count"] = st.number_input("Project Count", 1, 20, 5)
-    data["Average_Hours_Worked_Per_Week"] = st.number_input("Average Hours Worked Per Week", 30, 70, 45)
-    data["Absenteeism"] = st.number_input("Absenteeism (days)", 0, 50, 5)
-    data["Work_Environment_Satisfaction"] = st.selectbox("Work Environment Satisfaction (1â€“4)", [1,2,3,4])
-    data["Relationship_with_Manager"] = st.selectbox("Relationship with Manager (1â€“4)", [1,2,3,4])
-    data["Job_Involvement"] = st.selectbox("Job Involvement (1â€“4)", [1,2,3,4])
-    data["Distance_From_Home"] = st.number_input("Distance From Home (km)", 1, 60, 10)
-    data["Number_of_Companies_Worked"] = st.number_input("Number of Companies Worked", 0, 10, 1)
-    return pd.DataFrame([data])
+with st.sidebar:
+    st.subheader("Personal Info")
+    Age = st.slider("Age", 18, 65, 30)
+    Gender = st.selectbox("Gender", ["Male", "Female"])
+    Marital_Status = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
+    Distance_From_Home = st.slider("Distance From Home (km)", 1, 60, 10)
 
-input_df = user_input_form()
+    st.subheader("Job Info")
+    Department = st.selectbox(
+        "Department", ["Sales", "IT", "HR", "R&D", "Finance", "Marketing"]
+    )
+    Job_Role = st.selectbox(
+        "Job Role",
+        [
+            "Sales Executive",
+            "Software Engineer",
+            "HR Specialist",
+            "Research Scientist",
+            "Financial Analyst",
+            "Marketing Specialist",
+        ],
+    )
+    Job_Level = st.slider("Job Level", 1, 5, 2)
+    Monthly_Income = st.number_input("Monthly Income", 1000, 30000, 5000)
+    Hourly_Rate = st.slider("Hourly Rate", 10, 100, 40)
+    Overtime = st.selectbox("Overtime", ["Yes", "No"])
 
-st.subheader("Input preview")
-st.dataframe(input_df.T)
+    st.subheader("Experience")
+    Years_at_Company = st.slider("Years at Company", 0, 40, 2)
+    Years_in_Current_Role = st.slider("Years in Current Role", 0, 20, 1)
+    Years_Since_Last_Promotion = st.slider("Years Since Last Promotion", 0, 20, 0)
+    Number_of_Companies_Worked = st.slider("Companies Worked", 0, 10, 1)
+
+    st.subheader("Work Metrics")
+    Work_Life_Balance = st.selectbox("Work Life Balance (1–4)", [1, 2, 3, 4])
+    Job_Satisfaction = st.selectbox("Job Satisfaction (1–5)", [1, 2, 3, 4, 5])
+    Work_Environment_Satisfaction = st.selectbox(
+        "Work Environment Satisfaction (1–4)", [1, 2, 3, 4]
+    )
+    Relationship_with_Manager = st.selectbox(
+        "Relationship with Manager (1–4)", [1, 2, 3, 4]
+    )
+    Job_Involvement = st.selectbox("Job Involvement (1–4)", [1, 2, 3, 4])
+    Performance_Rating = st.selectbox("Performance Rating (1–4)", [1, 2, 3, 4])
+    Training_Hours_Last_Year = st.slider("Training Hours Last Year", 0, 200, 20)
+    Project_Count = st.slider("Project Count", 1, 20, 5)
+    Average_Hours_Worked_Per_Week = st.slider("Avg Hours / Week", 30, 70, 45)
+    Absenteeism = st.slider("Absenteeism (days)", 0, 50, 5)
 
 # ------------------------
-# Preprocess input to match training features
+# Build input dataframe
 # ------------------------
-# Categorical columns that were one-hot encoded during training
-# We derive them by checking which feature_names contain those prefixes.
-# But we will use a conservative list used previously: Gender, Marital_Status, Department, Job_Role, Overtime
+input_df = pd.DataFrame([{
+    "Age": Age,
+    "Gender": Gender,
+    "Marital_Status": Marital_Status,
+    "Department": Department,
+    "Job_Role": Job_Role,
+    "Job_Level": Job_Level,
+    "Monthly_Income": Monthly_Income,
+    "Hourly_Rate": Hourly_Rate,
+    "Years_at_Company": Years_at_Company,
+    "Years_in_Current_Role": Years_in_Current_Role,
+    "Years_Since_Last_Promotion": Years_Since_Last_Promotion,
+    "Work_Life_Balance": Work_Life_Balance,
+    "Job_Satisfaction": Job_Satisfaction,
+    "Performance_Rating": Performance_Rating,
+    "Training_Hours_Last_Year": Training_Hours_Last_Year,
+    "Overtime": Overtime,
+    "Project_Count": Project_Count,
+    "Average_Hours_Worked_Per_Week": Average_Hours_Worked_Per_Week,
+    "Absenteeism": Absenteeism,
+    "Work_Environment_Satisfaction": Work_Environment_Satisfaction,
+    "Relationship_with_Manager": Relationship_with_Manager,
+    "Job_Involvement": Job_Involvement,
+    "Distance_From_Home": Distance_From_Home,
+    "Number_of_Companies_Worked": Number_of_Companies_Worked
+}])
+
+# ------------------------
+# Preprocessing
+# ------------------------
 cat_cols = ["Gender", "Marital_Status", "Department", "Job_Role", "Overtime"]
+df_encoded = pd.get_dummies(input_df, columns=cat_cols, drop_first=True)
 
-# One-hot encode user input (drop_first=True as in training)
-df_encoded = pd.get_dummies(input_df, columns=[c for c in cat_cols if c in input_df.columns], drop_first=True)
+for col in feature_names:
+    if col not in df_encoded.columns:
+        df_encoded[col] = 0
 
-# Ensure all training features are present in the correct order:
-# 1) Add missing columns (with 0)
-for c in feature_names:
-    if c not in df_encoded.columns:
-        df_encoded[c] = 0
-
-# 2) Remove any extra columns (shouldn't happen since we added all training columns)
-extracols = [c for c in df_encoded.columns if c not in feature_names]
-if extracols:
-    df_encoded = df_encoded.drop(columns=extracols)
-
-# 3) Reorder columns to match training
 df_encoded = df_encoded[feature_names]
 
-# ------------------------
-# Scale only the numeric columns that were scaled during training
-# ------------------------
-# numeric_cols_to_scale contains names that were present in the training X
-# We need to safely apply scaler to these columns in our df (they are present)
-num_scale_cols = [c for c in numeric_cols_to_scale if c in df_encoded.columns]
-
-if len(num_scale_cols) > 0:
-    # scaler expects the same feature names ordering as when it was fit.
-    # During training you scaled only numeric_cols_to_scale in place (not the whole X).
-    # So we will transform these numeric cols only:
-    df_encoded[num_scale_cols] = scaler.transform(df_encoded[num_scale_cols])
-else:
-    st.warning("No numeric columns to scale were found in input - check numeric_cols_to_scale metadata.")
+scale_cols = [c for c in numeric_cols_to_scale if c in df_encoded.columns]
+df_encoded[scale_cols] = scaler.transform(df_encoded[scale_cols])
 
 # ------------------------
-# Prediction
+# Prediction section
 # ------------------------
-if st.button("Predict Attrition"):
-    try:
-        pred_prob = model.predict_proba(df_encoded)[:,1][0]
-        pred = model.predict(df_encoded)[0]
+st.divider()
+st.subheader("🔮 Prediction Result")
+
+if st.button("🚀 Predict Attrition", use_container_width=True):
+    prob = model.predict_proba(df_encoded)[0][1]
+    pred = model.predict(df_encoded)[0]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("Attrition Probability", f"{prob:.2%}")
+
+    with col2:
         if pred == 1:
-            st.error(f" Predicted: ATTRITION = YES   (probability = {pred_prob:.3f})")
+            st.error("⚠️ High Risk of Attrition")
         else:
-            st.success(f" Predicted: ATTRITION = NO   (probability = {pred_prob:.3f})")
-    except Exception as e:
-        st.error(f"Prediction failed: {e}")
-        st.exception(e)
+            st.success("✅ Low Risk of Attrition")
+
+st.divider()
+
+st.caption("Built with Machine Learning & Streamlit")
